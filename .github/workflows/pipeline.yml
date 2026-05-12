@@ -1,76 +1,57 @@
-name: React CI Pipeline
+name: React Docker ACR ACI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - dev
+      - staging
+      - main
 
 jobs:
-  build:
+  build-and-deploy-react:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node
-      uses: actions/setup-node@v4
+    - name: Azure Login
+      uses: azure/login@v2
       with:
-        node-version: '22'
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Install dependencies
-      run: npm install
+    - name: Login to ACR
+      run: |
+        docker login myreactdotnetacr.azurecr.io \
+        -u ${{ secrets.ACR_USERNAME }} \
+        -p ${{ secrets.ACR_PASSWORD }}
 
-    - name: Build app
-      run: npm run build
+    - name: Build React Docker Image
+      run: |
+        docker build --no-cache -t myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }} .
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist
-        path: dist
+    - name: Push React Docker Image
+      run: |
+        docker push myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }}
 
-  deploy-dev:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: build
-    runs-on: ubuntu-latest
+    - name: Delete Existing React Container
+      run: |
+        az container delete \
+          --resource-group virtualmachine1 \
+          --name react-container \
+          --yes || true
 
-    steps:
-    - name: Deploy to Dev
-      run: echo "Deploying to DEV environment"
-
-  deploy-staging:
-    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Deploy to Staging
-      run: echo "Deploying to STAGING environment"
-
-  deploy-prod:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Deploy to Production
-      run: echo "Deploying to PRODUCTION"
-
-  deploy-azure:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-         name: dist
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-         app-name: 'react-rakshitha'
-         publish-profile: ${{ secrets.REACT_APP_SERVICE_SECRET_KEY }}
-         package: .
+    - name: Deploy React Container to ACI
+      run: |
+        az container create \
+          --resource-group virtualmachine1 \
+          --name react-container \
+          --image myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }} \
+          --registry-login-server myreactdotnetacr.azurecr.io \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }} \
+          --dns-name-label rakshitha-react-app-123 \
+          --ports 80 \
+          --os-type Linux \
+          --cpu 1 \
+          --memory 1.5

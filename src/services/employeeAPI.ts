@@ -1,7 +1,7 @@
 import type { Employee, EmployeeFormData } from '../types/Employee';
 
 // Update this with your actual backend URL
-const API_BASE_URL = 'https://rakshitha-api-axfjf8ffavafb9bq.southindia-01.azurewebsites.net/api/employees';
+const API_BASE_URL = 'http://rakshitha-dotnet-api-123.southindia.azurecontainer.io:5000/api/employees';
 
 export const employeeAPI = {
   // Get all employees

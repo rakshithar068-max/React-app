@@ -4,7 +4,7 @@
 export const API_CONFIG = {
   // Base URL for all API endpoints
   // Change this to match your backend server
-  BASE_URL:'http://rakshitha-dotnet-api-123.southindia.azurecontainer.io:5000/',
+  BASE_URL:'http://135.13.12.231/',
 
   // Request timeout in milliseconds
   TIMEOUT: 30000,

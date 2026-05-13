@@ -1,4 +1,4 @@
-name: React Docker ACR ACI Pipeline
+name: React AKS Pipeline
 
 on:
   push:
@@ -8,11 +8,12 @@ on:
       - main
 
 jobs:
-  build-and-deploy-react:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+
+    - name: Checkout Code
       uses: actions/checkout@v4
 
     - name: Azure Login
@@ -22,36 +23,27 @@ jobs:
 
     - name: Login to ACR
       run: |
-        docker login myreactdotnetacr.azurecr.io \
-        -u ${{ secrets.ACR_USERNAME }} \
-        -p ${{ secrets.ACR_PASSWORD }}
+        az acr login --name myreactdotnetacr
 
     - name: Build React Docker Image
       run: |
-        docker build --no-cache -t myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }} .
+        docker build -t myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }} .
 
     - name: Push React Docker Image
       run: |
         docker push myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }}
 
-    - name: Delete Existing React Container
-      run: |
-        az container delete \
-          --resource-group virtualmachine1 \
-          --name react-container \
-          --yes || true
+    - name: Set AKS Context
+      uses: azure/aks-set-context@v4
+      with:
+        resource-group: virtualmachine1
+        cluster-name: myAKSCluster
 
-    - name: Deploy React Container to ACI
+    - name: Update React Deployment Image
       run: |
-        az container create \
-          --resource-group virtualmachine1 \
-          --name react-container \
-          --image myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }} \
-          --registry-login-server myreactdotnetacr.azurecr.io \
-          --registry-username ${{ secrets.ACR_USERNAME }} \
-          --registry-password ${{ secrets.ACR_PASSWORD }} \
-          --dns-name-label rakshitha-react-app-123 \
-          --ports 80 \
-          --os-type Linux \
-          --cpu 1 \
-          --memory 1.5
+        kubectl set image deployment/react-deployment \
+        react-container=myreactdotnetacr.azurecr.io/react_repo:${{ github.sha }}
+
+    - name: Verify Deployment
+      run: |
+        kubectl rollout status deployment/react-deployment
